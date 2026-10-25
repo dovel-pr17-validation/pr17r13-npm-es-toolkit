@@ -1,0 +1,134 @@
+#!/bin/sh
+
+# Function to create root exports
+create_root_export() {
+    local name=$1
+    echo "export * from './dist/$name';" > $name.d.ts
+    echo "module.exports = require('./dist/$name');" > $name.js
+}
+
+# Function to create compat exports
+create_compat_export() {
+    local category=$1
+    local name=$2
+    echo "module.exports = require('../dist/compat/$category/$name.js').$name;" > compat/$name.js
+    echo "export { $name as default } from '../dist/compat/$category/$name.mjs';" > compat/$name.mjs
+    echo "export { $name as default } from '../dist/compat/$category/$name.js';" > compat/$name.d.ts
+    echo "export { $name as default } from '../dist/compat/$category/$name.mjs';" > compat/$name.d.mts
+}
+
+# Function to create compat reexports (for functions from main src)
+create_compat_reexport() {
+    local category=$1
+    local name=$2
+    echo "module.exports = require('../dist/$category/$name.js').$name;" > compat/$name.js
+    echo "export { $name as default } from '../dist/$category/$name.mjs';" > compat/$name.mjs
+    echo "export { $name as default } from '../dist/$category/$name.js';" > compat/$name.d.ts
+    echo "export { $name as default } from '../dist/$category/$name.mjs';" > compat/$name.d.mts
+}
+
+# Function to create compat alias
+create_compat_alias() {
+    local category=$1
+    local original=$2
+    local alias=$3
+    echo "module.exports = require('../dist/compat/$category/$original.js').$original;" > compat/$alias.js
+    echo "export { $original as default } from '../dist/compat/$category/$original.mjs';" > compat/$alias.mjs
+    echo "export { $original as default } from '../dist/compat/$category/$original.js';" > compat/$alias.d.ts
+    echo "export { $original as default } from '../dist/compat/$category/$original.mjs';" > compat/$alias.d.mts
+}
+
+# Create root exports
+for module in array bigint server error compat fp function iterator math map object predicate promise query-string set string util; do
+    create_root_export $module
+done
+
+# Create nested fp/iterator export shim (paths are relative to the fp/ directory)
+mkdir -p fp
+echo "export * from '../dist/fp/iterator';" > fp/iterator.d.ts
+echo "module.exports = require('../dist/fp/iterator');" > fp/iterator.js
+
+# Create nested util/hash export shim (paths are relative to the util/ directory).
+# The shim pins the node implementation: resolvers old enough to ignore "exports"
+# are effectively always Node.js environments.
+mkdir -p util
+echo "export * from '../dist/util/hash/node';" > util/hash.d.ts
+echo "module.exports = require('../dist/util/hash/node');" > util/hash.js
+
+# The types module is declaration-only. Drop the empty JS the build emits so the
+# package ships only .d.ts/.d.mts (exposed via the "types" condition in publishConfig).
+if [ -d dist/types ]; then
+    find dist/types -type f \( -name '*.js' -o -name '*.mjs' -o -name '*.cjs' \) -delete
+fi
+
+# node10 moduleResolution ignores "exports", so it needs a root shim like the other
+# modules. Declaration-only, so only the .d.ts is created (no types.js counterpart).
+echo "export * from './dist/types';" > types.d.ts
+
+# Create compat directory
+mkdir -p compat
+
+# Array functions
+for func in castArray chunk compact concat countBy difference differenceBy differenceWith drop dropRight dropRightWhile dropWhile every fill filter find findIndex findLast findLastIndex flatMap flatMapDeep flatMapDepth flatten flattenDeep flattenDepth forEach forEachRight groupBy head includes indexOf initial intersection intersectionBy intersectionWith invokeMap join keyBy last lastIndexOf map nth orderBy partition pull pullAll pullAllBy pullAllWith pullAt reduce reduceRight reject remove reverse sample sampleSize shuffle size slice some sortBy sortedIndex sortedIndexBy sortedIndexOf sortedLastIndex sortedLastIndexBy sortedLastIndexOf tail take takeRight takeRightWhile takeWhile union unionBy unionWith uniq uniqBy uniqWith unzip unzipWith without xor xorBy xorWith zip zipObject zipObjectDeep zipWith; do
+    create_compat_export "array" "$func"
+done
+
+# Function functions
+for func in after ary attempt before bind bindKey curry curryRight debounce defer delay flip flow flowRight memoize negate nthArg overArgs partial partialRight rearg rest spread throttle wrap; do
+    create_compat_export "function" "$func"
+done
+
+# Function reexports (from main src)
+for func in once unary identity noop; do
+    create_compat_reexport "function" "$func"
+done
+
+# Math functions
+for func in add ceil clamp divide floor inRange max maxBy mean meanBy min minBy multiply parseInt random range rangeRight round subtract sum sumBy; do
+    create_compat_export "math" "$func"
+done
+
+# Object functions
+for func in assign assignIn assignInWith assignWith at clone cloneDeep cloneDeepWith cloneWith create defaults defaultsDeep findKey findLastKey forIn forInRight forOwn forOwnRight fromPairs functions functionsIn get has hasIn invertBy keys keysIn mapKeys mapValues merge mergeWith omit omitBy pick pickBy property propertyOf result set setWith toDefaulted toPairs toPairsIn transform unset update updateWith values valuesIn; do
+    create_compat_export "object" "$func"
+done
+
+# Object reexports (from main src)
+for func in invert; do
+    create_compat_reexport "object" "$func"  
+done
+
+# String functions
+for func in camelCase deburr endsWith escape escapeRegExp kebabCase lowerCase lowerFirst pad padEnd padStart repeat replace snakeCase split startCase startsWith template templateSettings toLower toUpper trim trimEnd trimStart truncate unescape upperCase upperFirst words; do
+    create_compat_export "string" "$func"
+done
+
+# String reexports (from main src)
+for func in capitalize; do
+    create_compat_reexport "string" "$func"
+done
+
+# Predicate functions
+for func in conforms conformsTo isArguments isArray isArrayBuffer isArrayLike isArrayLikeObject isBoolean isBuffer isDate isElement isEmpty isEqual isEqualWith isError isFinite isInteger isMap isMatch isMatchWith isNaN isNative isNil isNumber isObject isObjectLike isPlainObject isRegExp isSafeInteger isSet isString isSymbol isTypedArray isWeakMap isWeakSet matches matchesProperty; do
+    create_compat_export "predicate" "$func"
+done
+
+# Predicate reexports (from main src)
+for func in isFunction isLength isNull isUndefined; do
+    create_compat_reexport "predicate" "$func"
+done
+
+# Util functions
+for func in bindAll cond constant defaultTo eq gt gte invoke iteratee lt lte method methodOf now over overEvery overSome stubArray stubFalse stubObject stubString stubTrue times toArray toFinite toInteger toLength toNumber toPath toPlainObject toSafeInteger toString uniqueId; do
+    create_compat_export "util" "$func"
+done
+
+# Create aliases
+create_compat_alias "array" "forEach" "each"
+create_compat_alias "array" "forEachRight" "eachRight" 
+create_compat_alias "array" "head" "first"
+create_compat_alias "object" "assignIn" "extend"
+create_compat_alias "object" "assignInWith" "extendWith"
+
+# Verify that every generated compat entry point is actually importable
+node ./.scripts/check-compat-entrypoints-loadable.mjs

@@ -1,0 +1,99 @@
+import { describe, expect, it } from 'vitest';
+import { xorWith } from './xorWith';
+import { isEqual } from '../../predicate';
+import { args } from '../_internal/args';
+
+/**
+ * @see https://github.com/lodash/lodash/blob/v5-wip/test/xor-methods.spec.js
+ * @see https://github.com/lodash/lodash/blob/v5-wip/test/xorWith.spec.js
+ */
+describe('xorWith', () => {
+  it(`should return the symmetric difference of two arrays`, () => {
+    const actual = xorWith([2, 1], [2, 3]);
+    expect(actual).toEqual([1, 3]);
+  });
+
+  it(`should return the symmetric difference of multiple arrays`, () => {
+    let actual = xorWith([2, 1], [2, 3], [3, 4]);
+    expect(actual).toEqual([1, 4]);
+
+    actual = xorWith([1, 2], [2, 1], [1, 2]);
+    expect(actual).toEqual([]);
+  });
+
+  it(`should return an empty array when comparing the same array`, () => {
+    const array = [1];
+    const actual = xorWith(array, array, array);
+
+    expect(actual).toEqual([]);
+  });
+
+  it(`should return an array of unique values`, () => {
+    let actual = xorWith([1, 1, 2, 5], [2, 2, 3, 5], [3, 4, 5, 5]);
+    expect(actual).toEqual([1, 4]);
+
+    actual = xorWith([1, 1]);
+    expect(actual).toEqual([1]);
+  });
+
+  it(`should return a new array when a single array is given`, () => {
+    const array = [1];
+    expect(xorWith(array)).not.toBe(array);
+  });
+
+  it(`should ignore individual secondary arguments`, () => {
+    const array = [0];
+    expect(xorWith(array, 3 as any, null, { 0: 1 } as any)).toEqual(array);
+  });
+
+  it(`should ignore values that are not arrays or \`arguments\` objects`, () => {
+    const array = [1, 2];
+    expect(xorWith(array, 3 as any, { 0: 1 } as any, null)).toEqual(array);
+    expect(xorWith(null, array, null, [2, 3])).toEqual([1, 3]);
+    expect(xorWith(array, null, args, null)).toEqual([3]);
+  });
+
+  it('should work with a `comparator`', () => {
+    const objects = [
+      { x: 1, y: 2 },
+      { x: 2, y: 1 },
+    ];
+    const others = [
+      { x: 1, y: 1 },
+      { x: 1, y: 2 },
+    ];
+    const actual = xorWith(objects, others, isEqual);
+
+    expect(actual).toEqual([objects[1], others[0]]);
+  });
+
+  it('should match `NaN` like lodash when no `comparator` is given', () => {
+    expect(xorWith([NaN], [NaN])).toEqual([]);
+    expect(xorWith([1, NaN], [2, NaN])).toEqual([1, 2]);
+    expect(xorWith([NaN, NaN], [1])).toEqual([NaN, 1]);
+  });
+
+  it('should normalize `-0` to `0` like lodash when no `comparator` is given', () => {
+    expect(xorWith([-0, 1], [1])).toEqual([0]);
+    expect(xorWith([-0])).toEqual([0]);
+  });
+
+  it('should keep the `comparator` semantics when one is given', () => {
+    const eq = (a: number, b: number) => a === b;
+
+    expect(xorWith([NaN], [NaN], eq)).toEqual([NaN, NaN]);
+    expect(xorWith([-0, 1], [1], eq)).toEqual([-0]);
+  });
+  it('should ignore the `comparator` when given a single array like lodash', () => {
+    const eq = (a: number, b: number) => a === b;
+
+    expect(xorWith([{ a: 1 }, { a: 1 }], isEqual)).toEqual([{ a: 1 }, { a: 1 }]);
+    expect(xorWith([1, 2, 3], eq)).toEqual([1, 2, 3]);
+    // @ts-expect-error - lodash accepts a comparator with no arrays
+    expect(xorWith(eq)).toEqual([]);
+
+    expect(xorWith([1, 1, 2], eq)).toEqual([1, 2]);
+    expect(xorWith([NaN, NaN], eq)).toEqual([NaN]);
+    expect(xorWith([-0], eq)).toEqual([0]);
+  });
+});

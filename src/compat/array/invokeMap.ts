@@ -1,0 +1,86 @@
+import { isFunction } from '../../predicate/isFunction.ts';
+import { isNil } from '../../predicate/isNil.ts';
+import { objectValues } from '../_internal/objectValues.ts';
+import { get } from '../object/get.ts';
+import { isArrayLike } from '../predicate/isArrayLike.ts';
+import { toPath } from '../util/toPath.ts';
+
+/**
+ * Invokes the method at path of each element in collection.
+ *
+ * @param collection - The collection to iterate over.
+ * @param methodName - The name of the method to invoke.
+ * @param args - The arguments to invoke each method with.
+ * @returns Returns the array of results.
+ *
+ * @example
+ * invokeMap([[5, 1, 7], [3, 2, 1]], 'sort');
+ * // => [[1, 5, 7], [1, 2, 3]]
+ *
+ * invokeMap([123, 456], 'toString', 2);
+ * // => ['1111011', '111001000']
+ */
+export function invokeMap(collection: object | null | undefined, methodName: string, ...args: any[]): any[];
+
+/**
+ * Invokes the method at path of each element in collection.
+ *
+ * @template R
+ * @param collection - The collection to iterate over.
+ * @param method - The method to invoke.
+ * @param args - The arguments to invoke each method with.
+ * @returns Returns the array of results.
+ *
+ * @example
+ * invokeMap([5, 1, 7], Array.prototype.slice, 1);
+ * // => [[], [], []]
+ */
+export function invokeMap<R>(collection: object | null | undefined, method: (...args: any[]) => R, ...args: any[]): R[];
+
+/**
+ * Invokes the method at path of each element in collection.
+ *
+ * @template T, R
+ * @param collection - The collection to iterate over.
+ * @param path - The path of the method to invoke or the method to invoke.
+ * @param args - The arguments to invoke each method with.
+ * @returns Returns the array of results.
+ *
+ * @example
+ * invokeMap([[5, 1, 7], [3, 2, 1]], 'sort');
+ * // => [[1, 5, 7], [1, 2, 3]]
+ */
+export function invokeMap<T, R>(
+  collection: ArrayLike<T> | Record<string, T> | null | undefined,
+  path: string | ((...args: any[]) => R),
+  ...args: any[]
+): Array<R | undefined> {
+  if (isNil(collection)) {
+    return [];
+  }
+
+  const values = isArrayLike(collection) ? (Array.from(collection) as T[]) : objectValues(collection);
+  const result: Array<R | undefined> = [];
+
+  for (let i = 0; i < values.length; i++) {
+    const value = values[i];
+
+    if (isFunction(path)) {
+      result.push(path.apply(value, args));
+      continue;
+    }
+
+    const method = get(value, path);
+
+    let thisContext = value;
+
+    const keys = Array.isArray(path) ? path : toPath(path);
+    if (keys.length > 1) {
+      thisContext = get(value, keys.slice(0, -1));
+    }
+
+    result.push(method == null ? undefined : method.apply(thisContext, args));
+  }
+
+  return result;
+}

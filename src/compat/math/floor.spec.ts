@@ -1,0 +1,120 @@
+import { describe, expect, it } from 'vitest';
+import { floor } from './floor';
+
+describe('floor', () => {
+  it(`\`floor\` should return a rounded number without a precision`, () => {
+    const actual = floor(4.006);
+    expect(actual).toBe(4);
+  });
+
+  it(`\`floor\` should work with a precision of \`0\``, () => {
+    const actual = floor(4.006, 0);
+    expect(actual).toBe(4);
+  });
+
+  it(`\`floor\` should work with a positive precision`, () => {
+    let actual = floor(4.016, 2);
+    expect(actual).toBe(4.01);
+
+    actual = floor(4.1, 2);
+    expect(actual).toBe(4.1);
+
+    actual = floor(4.4, 2);
+    expect(actual).toBe(4.4);
+  });
+
+  it(`\`floor\` should work with a negative precision`, () => {
+    const actual = floor(4160, -2);
+    expect(actual).toBe(4100);
+  });
+
+  it(`\`floor\` should coerce \`precision\` to an integer`, () => {
+    let actual = floor(4.006, NaN);
+    expect(actual).toBe(4);
+
+    const expected = 4.01;
+
+    actual = floor(4.016, 2.6);
+    expect(actual).toBe(expected);
+
+    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+    // @ts-expect-error
+    actual = floor(4.016, '+2');
+    expect(actual).toBe(expected);
+  });
+
+  it(`\`floor\` should work with exponential notation and \`precision\``, () => {
+    let actual = floor(5e1, 2);
+    expect(actual).toEqual(50);
+
+    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+    // @ts-expect-error
+    actual = floor('5e', 1);
+    expect(actual).toEqual(NaN);
+
+    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+    // @ts-expect-error
+    actual = floor('5e1e1', 1);
+    expect(actual).toEqual(NaN);
+  });
+
+  it(`\`floor\` should preserve the sign of \`0\``, () => {
+    const values = [[0], [-0], ['0'], ['-0'], [0, 1], [-0, 1], ['0', 1], ['-0', 1]];
+    const expected = [Infinity, -Infinity, Infinity, -Infinity, Infinity, -Infinity, Infinity, -Infinity];
+
+    // eslint-disable-next-line prefer-spread
+    const actual = values.map(args => 1 / floor.apply(undefined, args as any));
+
+    expect(actual).toEqual(expected);
+  });
+
+  it(`\`floor\` should return \`Infinity\` for infinite values regardless of \`precision\``, () => {
+    expect(floor(Infinity)).toBe(Infinity);
+    expect(floor(Infinity, 2)).toBe(Infinity);
+    expect(floor(-Infinity, 2)).toBe(-Infinity);
+    expect(floor(Infinity, -2)).toBe(Infinity);
+    expect(floor(-Infinity, -2)).toBe(-Infinity);
+  });
+
+  it(`\`floor\` should handle edge cases`, () => {
+    expect(floor(1.797, 295)).toBe(1.797);
+    expect(floor(1.797, -295)).toBe(0);
+    expect(floor(1.792e-295, 295)).toBe(0);
+    expect(floor(1.792e295, -295)).toBe(1e295);
+    expect(floor(1.7976931348623157e308, 292)).toBe(NaN);
+    expect(floor(5e-324, 323)).toBe(0);
+    expect(floor(5e-324, -323)).toBe(0);
+  });
+
+  it(`\`floor\` should coerce \`precision\` with \`toInteger\` like lodash`, () => {
+    // Values that `toInteger` resolves to `0`, so no decimal adjustment happens.
+    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+    // @ts-expect-error
+    expect(floor(4.016, [1, 2, 3])).toBe(4);
+    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+    // @ts-expect-error
+    expect(floor(4.016, '2px')).toBe(4);
+
+    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+    // @ts-expect-error
+    expect(floor(4.016, true)).toBe(4);
+    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+    // @ts-expect-error
+    expect(floor(4.016, '0x2')).toBe(4.01);
+
+    // Capped at `292`.
+    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+    // @ts-expect-error
+    expect(floor(4.016, '1e3')).toBe(4.016);
+    expect(floor(4.016, Infinity)).toBe(4.016);
+  });
+
+  it(`\`floor\` should coerce \`number\` with \`toNumber\` like lodash`, () => {
+    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+    // @ts-expect-error
+    expect(floor(Symbol('a'))).toBe(NaN);
+    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+    // @ts-expect-error
+    expect(floor(4.016, Symbol('a'))).toBe(4);
+  });
+});

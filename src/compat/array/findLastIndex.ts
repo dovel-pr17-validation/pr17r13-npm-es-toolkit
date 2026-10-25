@@ -1,0 +1,107 @@
+import { identity } from '../../function/identity.ts';
+import { ListIterateeCustom } from '../_internal/ListIterateeCustom.ts';
+import { toArray } from '../_internal/toArray.ts';
+import { property } from '../object/property.ts';
+import { matches } from '../predicate/matches.ts';
+import { matchesProperty } from '../predicate/matchesProperty.ts';
+import { toInteger } from '../util/toInteger.ts';
+
+/**
+ * Finds the index of the last element in the array that satisfies the predicate.
+ *
+ * @template T
+ * @param array - The array to search through.
+ * @param [predicate] - The predicate function, partial object, property-value pair, or property name.
+ * @param [fromIndex] - The index to start searching from.
+ * @returns The index of the last matching element, or -1 if not found.
+ *
+ * @example
+ * const users = [
+ *   { user: 'barney', active: true },
+ *   { user: 'fred', active: false },
+ *   { user: 'pebbles', active: false }
+ * ];
+ *
+ * findLastIndex(users, o => o.user === 'pebbles');
+ * // => 2
+ *
+ * findLastIndex(users, { user: 'barney', active: true });
+ * // => 0
+ *
+ * findLastIndex(users, ['active', false]);
+ * // => 2
+ *
+ * findLastIndex(users, 'active');
+ * // => 0
+ */
+export function findLastIndex<T>(
+  array: ArrayLike<T> | null | undefined,
+  predicate?: ListIterateeCustom<T, boolean>,
+  fromIndex?: number
+): number;
+
+/**
+ * Finds the index of the last element in the array that satisfies the predicate.
+ *
+ * @template T
+ * @param arr - The array to search through.
+ * @param doesMatch - The predicate function, partial object, property-value pair, or property name.
+ * @param [fromIndex=arr.length - 1] - The index to start the search from, defaults to the last index of the array.
+ * @returns The index of the last matching element, or -1 if not found.
+ *
+ * @example
+ * const items = [{ id: 1, name: 'Alice' }, { id: 2, name: 'Bob' }];
+ * findLastIndex(items, 'name');
+ * // => 1
+ */
+export function findLastIndex<T>(
+  arr: ArrayLike<T> | null | undefined,
+  doesMatch: ((item: T, index: number, arr: any) => unknown) | Partial<T> | [keyof T, unknown] | PropertyKey = identity,
+  fromIndex: number = arr ? arr.length - 1 : 0
+): number {
+  if (!arr) {
+    return -1;
+  }
+  const index = toInteger(fromIndex);
+  if (fromIndex < 0) {
+    fromIndex = Math.max(arr.length + index, 0);
+  } else {
+    fromIndex = Math.min(index, arr.length - 1);
+  }
+
+  const subArray = toArray(arr).slice(0, fromIndex + 1);
+
+  let predicate: (item: T, index: number, arr: any) => unknown;
+
+  switch (typeof doesMatch) {
+    case 'function': {
+      predicate = doesMatch;
+      break;
+    }
+    case 'object': {
+      if (Array.isArray(doesMatch) && doesMatch.length === 2) {
+        const key = doesMatch[0];
+        const value = doesMatch[1];
+
+        predicate = matchesProperty(key, value);
+      } else {
+        predicate = matches(doesMatch);
+      }
+      break;
+    }
+    case 'number':
+    case 'symbol':
+    case 'string': {
+      predicate = property(doesMatch);
+      break;
+    }
+  }
+
+  for (let i = subArray.length - 1; i >= 0; i--) {
+    if (predicate(subArray[i], i, subArray)) {
+      return i;
+    }
+  }
+
+  return -1;
+}

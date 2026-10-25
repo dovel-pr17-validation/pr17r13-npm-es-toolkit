@@ -1,0 +1,126 @@
+import { fill as fillToolkit } from '../../array/fill.ts';
+import { isIterateeCall } from '../_internal/isIterateeCall.ts';
+import type { MutableList } from '../_internal/MutableList.d.ts';
+import type { RejectReadonly } from '../_internal/RejectReadonly.d.ts';
+import { isArrayLike } from '../predicate/isArrayLike.ts';
+import { isString } from '../predicate/isString.ts';
+import { toInteger } from '../util/toInteger.ts';
+
+/**
+ * Fills an array with a value.
+ * @template T
+ * @param array - The array to fill
+ * @param value - The value to fill array with
+ * @returns Returns the filled array
+ * @example
+ * fill([1, 2, 3], 'a')
+ * // => ['a', 'a', 'a']
+ */
+export function fill<T>(array: any[] | null | undefined, value: T): T[];
+
+/**
+ * Fills an array-like object with a value.
+ * @template T, AL
+ * @param array - The array-like object to fill
+ * @param value - The value to fill array with
+ * @returns Returns the filled array-like object
+ * @example
+ * fill({ length: 3 }, 2)
+ * // => { 0: 2, 1: 2, 2: 2, length: 3 }
+ */
+export function fill<T, AL extends MutableList<any>>(
+  array: RejectReadonly<AL> | null | undefined,
+  value: T
+): ArrayLike<T>;
+
+/**
+ * Fills an array with a value from start up to end.
+ * @template T, U
+ * @param array - The array to fill
+ * @param value - The value to fill array with
+ * @param [start=0] - The start position
+ * @param [end=array.length] - The end position
+ * @returns Returns the filled array
+ * @example
+ * fill([1, 2, 3], 'a', 1, 2)
+ * // => [1, 'a', 3]
+ */
+export function fill<T, U>(array: U[] | null | undefined, value: T, start?: number, end?: number): Array<T | U>;
+
+/**
+ * Fills an array-like object with a value from start up to end.
+ * @template T, U
+ * @param array - The array-like object to fill
+ * @param value - The value to fill array with
+ * @param [start=0] - The start position
+ * @param [end=array.length] - The end position
+ * @returns Returns the filled array-like object
+ * @example
+ * fill({ 0: 1, 1: 2, 2: 3, length: 3 }, 'a', 1, 2)
+ * // => { 0: 1, 1: 'a', 2: 3, length: 3 }
+ */
+export function fill<T, U extends MutableList<any>>(
+  array: RejectReadonly<U> | null | undefined,
+  value: T,
+  start?: number,
+  end?: number
+): ArrayLike<T | U[0]>;
+
+/**
+ * Fills elements of an array with a specified value from the start position up to, but not including, the end position.
+ *
+ * This function mutates the original array and replaces its elements with the provided value, starting from the specified
+ * start index up to the end index (non-inclusive). If the start or end indices are not provided, it defaults to filling the
+ * entire array.
+ *
+ * @template T, U
+ * @param array - The array to fill.
+ * @param value - The value to fill the array with.
+ * @param [start=0] - The start position. Defaults to 0.
+ * @param [end=arr.length] - The end position. Defaults to the array's length.
+ * @returns The array with the filled values.
+ *
+ * @example
+ * fill([1, 2, 3], 'a');
+ * // => ['a', 'a', 'a']
+ *
+ * fill(Array(3), 2);
+ * // => [2, 2, 2]
+ *
+ * fill([4, 6, 8, 10], '*', 1, 3);
+ * // => [4, '*', '*', 10]
+ *
+ * fill([1, 2, 3], '*', -2, -1);
+ * // => [1, '*', 3]
+ */
+export function fill<T, U>(
+  array: ArrayLike<T | U> | null | undefined,
+  value: U,
+  start = 0,
+  end = array ? array.length : 0
+): ArrayLike<T | U> {
+  if (!isArrayLike(array)) {
+    return [];
+  }
+  if (isString(array)) {
+    // prevent TypeError: Cannot assign to read only property of string
+    return array;
+  }
+
+  if (start && typeof start !== 'number' && isIterateeCall(array, value, start)) {
+    start = 0;
+    end = array.length;
+  }
+
+  start = toInteger(start);
+  end = toInteger(end);
+
+  if (!start) {
+    start = 0;
+  }
+  if (!end) {
+    end = 0;
+  }
+
+  return fillToolkit(array as any, value, start, end);
+}

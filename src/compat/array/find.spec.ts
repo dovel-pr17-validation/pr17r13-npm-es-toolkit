@@ -1,0 +1,183 @@
+import { describe, expect, it } from 'vitest';
+import { find } from './find';
+import { args } from '../_internal/args';
+import { empties } from '../_internal/empties';
+import { slice } from '../_internal/slice';
+
+describe('find', () => {
+  const objects = [
+    { a: 0, b: 0, 0: 0, [Symbol.for('a')]: 0 },
+    { a: 1, b: 1, 0: 1, [Symbol.for('a')]: 1 },
+    { a: 2, b: 2, 0: 2, [Symbol.for('a')]: 2 },
+  ];
+
+  it(`should return the found value`, () => {
+    expect(find(objects, object => object.a)).toEqual(objects[1]);
+  });
+
+  it(`should return undefined if value is not found`, () => {
+    expect(find(objects, object => object.a === 3)).toEqual(undefined);
+  });
+
+  it(`find should work with \`matches\` shorthands`, () => {
+    expect(find(objects, { b: 2 })).toBe(objects[2]);
+  });
+
+  it(`find should work with \`matchesProperty\` shorthands`, () => {
+    expect(find(objects, ['b', 2])).toBe(objects[2]);
+    expect(find(objects, [0, 2])).toBe(objects[2]);
+    expect(find(objects, [Symbol.for('a'), 2])).toBe(objects[2]);
+  });
+
+  it(`find should work with \`property\` shorthands`, () => {
+    expect(find(objects, 'b')).toBe(objects[1]);
+    expect(find(objects, 0)).toBe(objects[1]);
+    expect(find(objects, Symbol.for('a'))).toBe(objects[1]);
+  });
+
+  it(`find should return undefined for empty collections`, () => {
+    const emptyValues = empties;
+    const expecting = emptyValues.map(() => undefined);
+
+    const actual = emptyValues.map(value => {
+      try {
+        // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+        // @ts-expect-error
+        return find(value, { a: 3 });
+        // eslint-disable-next-line
+      } catch (e) {}
+    });
+
+    expect(actual).toEqual(expecting);
+  });
+
+  it(`find should provide correct \`predicate\` arguments for arrays`, () => {
+    let args: any;
+    const array = ['a'];
+
+    find(array, function () {
+      // eslint-disable-next-line
+      args || (args = slice.call(arguments));
+    });
+
+    expect(args).toEqual(['a', 0, array]);
+  });
+
+  it(`find should work with an object for \`collection\``, () => {
+    const actual = find({ a: 1, b: 2, c: 3 }, n => n < 3);
+
+    expect(actual).toBe(1);
+  });
+
+  it(`find should provide correct \`predicate\` arguments for objects`, () => {
+    let args: any;
+    const object = { a: 1 };
+
+    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+    // @ts-expect-error
+    find(object, function () {
+      // eslint-disable-next-line
+      args || (args = slice.call(arguments));
+    });
+
+    expect(args).toEqual([1, 'a', object]);
+  });
+
+  it('find should support fromIndex', () => {
+    expect(find(objects, { b: 2 }, -1)).toBe(objects[2]);
+    expect(find(objects, { b: 2 }, 0)).toBe(objects[2]);
+    expect(find(objects, { b: 2 }, 1)).toBe(objects[2]);
+    expect(find(objects, { b: 2 }, 2)).toBe(objects[2]);
+    expect(find(objects, { b: 2 }, 3)).toBe(undefined);
+    expect(find(objects, { b: 2 }, 4)).toBe(undefined);
+  });
+
+  it('find should coerce `fromIndex` to an integer', () => {
+    const array = [1, 2, 3, 1, 2, 3];
+
+    expect(find(array, x => x === 1, 2.7)).toBe(1);
+    expect(find(array, x => x === 1, -2.7)).toBe(undefined);
+    expect(find(array, x => x === 1, -0.5)).toBe(1);
+  });
+
+  it('should truncate non-integer `fromIndex` values like lodash', () => {
+    const array = [10, 20, 30, 40];
+
+    expect(find(array, value => value > 0, 1.5)).toBe(20);
+    expect(find(array, value => value > 0, -1.5)).toBe(40);
+    expect(find(array, value => value > 0, NaN)).toBe(10);
+  });
+
+  it('should return `undefined` when provided `null` or `undefined`', () => {
+    expect(find(null, 'a')).toBe(undefined);
+    expect(find(undefined, 'a')).toBe(undefined);
+  });
+
+  it('should return `undefined` when provided none array-like object', () => {
+    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+    // @ts-expect-error
+    expect(find(1, 'a')).toBe(undefined);
+    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+    // @ts-expect-error
+    expect(find(true, 'a')).toBe(undefined);
+  });
+
+  it('should support array-like objects', () => {
+    expect(find({ 0: 1, 1: 2, 2: 3, length: 3 }, i => i === 3)).toBe(3);
+    expect(find('123', i => i === '3')).toBe('3');
+    expect(find(args, i => i === 3)).toBe(3);
+  });
+
+  it('should not treat the `length` property of a plain array-like object as an element', () => {
+    const arrayLike = { 0: 'a', 1: 'b', length: 2 };
+
+    expect(find(arrayLike, (value: unknown) => value === 2)).toBe(undefined);
+  });
+
+  it('should use identity when no _doesMatch is provided', () => {
+    expect(find([0, 1, 2])).toBe(1);
+    expect(find([false, true, false])).toBe(true);
+    expect(find(['', 'hello', ''])).toBe('hello');
+    expect(find({ a: 0, b: 1, c: 2 })).toBe(1);
+    expect(find({ a: false, b: true, c: false })).toBe(true);
+    expect(find({ a: '', b: 'hello', c: '' })).toBe('hello');
+    expect(find('123')).toBe('1');
+    expect(find(args)).toBe(1);
+  });
+
+  it('should treat a boolean predicate as a `_.property` shorthand, matching lodash', () => {
+    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+    // @ts-expect-error
+    expect(find({ a: 1, b: 2, c: 3 }, true)).toBe(undefined);
+    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+    // @ts-expect-error
+    expect(find({ a: 1, b: 2, c: 3 }, false)).toBe(undefined);
+    expect(find([1, 2, 3], true)).toBe(undefined);
+    expect(find([1, 2, 3], false)).toBe(undefined);
+
+    const objects = [{ true: 'a' }, { true: 'b' }];
+    expect(find(objects, true)).toBe(objects[0]);
+  });
+
+  it('should return undefined when object matcher has only undefined values for keys', () => {
+    const array = [
+      {
+        label: 'Foo',
+        value: 'foo',
+      },
+      {
+        label: 'Bar',
+        value: 'bar',
+      },
+    ];
+
+    expect(find(array, { value: { missingKey: undefined } })).toBe(undefined);
+  });
+
+  it('should work with no predicate (uses identity)', () => {
+    expect(find([0, false, null, undefined, '', 1, 2, 3])).toBe(1);
+    expect(find([0, false, null, undefined, ''])).toBe(undefined);
+    expect(find({ a: 0, b: false, c: null, d: undefined, e: '', f: 1 })).toBe(1);
+    expect(find({ a: 0, b: false, c: null, d: undefined, e: '' })).toBe(undefined);
+  });
+});

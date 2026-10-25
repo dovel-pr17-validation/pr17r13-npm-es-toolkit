@@ -1,0 +1,65 @@
+import { basePull } from '../_internal/basePull.ts';
+import type { MutableList } from '../_internal/MutableList.d.ts';
+import type { RejectReadonly } from '../_internal/RejectReadonly.d.ts';
+
+/**
+ * This method is like `_.pull` except that it accepts an array of values to remove.
+ *
+ * **Note:** Unlike `_.difference`, this method mutates `array`.
+ *
+ * @template T
+ * @param array - The array to modify.
+ * @param [values] - The values to remove.
+ * @returns Returns `array`.
+ *
+ * @example
+ * var array = [1, 2, 3, 1, 2, 3];
+ *
+ * pullAll(array, [2, 3]);
+ * console.log(array);
+ * // => [1, 1]
+ */
+export function pullAll<T>(array: T[], values?: ArrayLike<T>): T[];
+
+/**
+ * This method is like `_.pull` except that it accepts an array of values to remove.
+ *
+ * **Note:** Unlike `_.difference`, this method mutates `array`.
+ *
+ * @template L
+ * @param array - The array to modify.
+ * @param [values] - The values to remove.
+ * @returns Returns `array`.
+ *
+ * @example
+ * var array = [1, 2, 3, 1, 2, 3];
+ *
+ * pullAll(array, [2, 3]);
+ * console.log(array);
+ * // => [1, 1]
+ */
+export function pullAll<L extends MutableList<any>>(array: RejectReadonly<L>, values?: ArrayLike<L[0]>): L;
+
+/**
+ * Removes all specified values from an array.
+ *
+ * This function changes `arr` in place.
+ * If you want to remove values without modifying the original array, use `difference`.
+ *
+ * @template T
+ * @param arr - The array to modify.
+ * @param valuesToRemove - The values to remove from the array.
+ * @returns The modified array with the specified values removed.
+ *
+ * @example
+ * const numbers = [1, 2, 3, 4, 5, 2, 4];
+ * pullAll(numbers, [2, 4]);
+ * console.log(numbers); // [1, 3, 5]
+ */
+export function pullAll<T>(arr: T[], valuesToRemove: ArrayLike<T> = []): T[] {
+  if (arr?.length == null || valuesToRemove?.length == null) {
+    return arr;
+  }
+
+  return basePull(arr, Array.from(valuesToRemove));
+}

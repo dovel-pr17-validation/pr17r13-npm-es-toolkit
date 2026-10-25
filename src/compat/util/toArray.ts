@@ -1,0 +1,73 @@
+import { isIterable } from '../../predicate/isIterable.ts';
+import { objectValues } from '../_internal/objectValues.ts';
+import { isArrayLike } from '../predicate/isArrayLike.ts';
+import { isMap } from '../predicate/isMap.ts';
+import { isSet } from '../predicate/isSet.ts';
+
+/**
+ * Converts a record or null/undefined to an array of its values.
+ *
+ * @template T
+ * @param value - The record or null/undefined to convert.
+ * @returns Returns an array of the record's values or an empty array if null/undefined.
+ *
+ * @example
+ * toArray({ 'a': 1, 'b': 2 }) // => [1, 2]
+ * toArray(null) // => []
+ */
+export function toArray<T>(value: Record<string, T> | Record<number, T> | null | undefined): T[];
+
+/**
+ * Converts a value to an array of its values.
+ *
+ * @template T
+ * @param value - The value to convert.
+ * @returns Returns an array of the value's values.
+ *
+ * @example
+ * toArray({ x: 10, y: 20 }) // => [10, 20]
+ * toArray('abc') // => ['a', 'b', 'c']
+ */
+export function toArray<T>(value: T): Array<T[keyof T]>;
+
+/**
+ * Converts an undefined value to an empty array.
+ *
+ * @returns Returns an empty array.
+ *
+ * @example
+ * toArray() // => []
+ */
+export function toArray(): any[];
+
+/**
+ * Converts a value to an array.
+ *
+ * @param value - The value to convert.
+ * @returns Returns the converted array.
+ *
+ * @example
+ * toArray({ 'a': 1, 'b': 2 }) // => [1,2]
+ * toArray('abc') // => ['a', 'b', 'c']
+ * toArray(1) // => []
+ * toArray(null) // => []
+ */
+export function toArray(value?: unknown): any[] {
+  if (value == null) {
+    return [];
+  }
+
+  if (isArrayLike(value) || isMap(value) || isSet(value)) {
+    return Array.from(value);
+  }
+
+  if (typeof value === 'object') {
+    if (isIterable(value)) {
+      return Array.from(value);
+    }
+
+    return objectValues(value);
+  }
+
+  return [];
+}

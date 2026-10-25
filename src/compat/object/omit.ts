@@ -1,0 +1,157 @@
+import { cloneDeepWith } from './cloneDeepWith.ts';
+import { keysIn } from './keysIn.ts';
+import { unset } from './unset.ts';
+import { getSymbolsIn } from '../_internal/getSymbolsIn.ts';
+import { isDeepKey } from '../_internal/isDeepKey.ts';
+import { Many } from '../_internal/Many.ts';
+import { flatten } from '../array/flatten.ts';
+import { isPlainObject } from '../predicate/isPlainObject.ts';
+
+/**
+ * Creates a new object with specified keys omitted.
+ *
+ * @template T - The type of object.
+ * @template K - The type of keys to omit.
+ * @param object - The object to omit keys from.
+ * @param paths - The keys to be omitted from the object.
+ * @returns A new object with the specified keys omitted.
+ *
+ * @example
+ * omit({ a: 1, b: 2, c: 3 }, 'a', 'c');
+ * // => { b: 2 }
+ */
+export function omit<T extends object, K extends PropertyKey[]>(
+  object: T | null | undefined,
+  ...paths: K
+): Pick<T, Exclude<keyof T, K[number]>>;
+
+/**
+ * Creates a new object with specified keys omitted.
+ *
+ * @template T - The type of object.
+ * @template K - The type of keys to omit.
+ * @param object - The object to omit keys from.
+ * @param paths - The keys to be omitted from the object.
+ * @returns A new object with the specified keys omitted.
+ *
+ * @example
+ * omit({ a: 1, b: 2, c: 3 }, 'a', ['b', 'c']);
+ * // => {}
+ */
+export function omit<T extends object, K extends keyof T>(
+  object: T | null | undefined,
+  ...paths: Array<Many<K>>
+): Omit<T, K>;
+
+/**
+ * Creates a new object with specified keys omitted.
+ *
+ * @template T - The type of object.
+ * @param object - The object to omit keys from.
+ * @param paths - The keys to be omitted from the object.
+ * @returns A new object with the specified keys omitted.
+ *
+ * @example
+ * omit({ a: 1, b: 2, c: 3 }, 'a', 'b');
+ * // => { c: 3 }
+ */
+export function omit<T extends object>(object: T | null | undefined, ...paths: Array<Many<PropertyKey>>): Partial<T>;
+
+/**
+ * Creates a new object with specified keys omitted.
+ *
+ * This function takes an object and a variable number of keys, and returns a new object that
+ * excludes the properties corresponding to the specified keys. Note that keys can be deep.
+ *
+ * Deep keys can be specified for keys.
+ *
+ * @template T - The type of object.
+ * @param obj - The object to omit keys from.
+ * @param keysArr - A variable number of keys to be omitted from the object.
+ * @returns A new object with the specified keys omitted.
+ *
+ * @example
+ * omit({ a: 1, b: 2, c: 3 }, 'a', 'b');
+ * // => { c: 3 }
+ *
+ * omit({ a: { b: 1, c: 2 }, d: 3 }, 'a.b', 'd');
+ * // => { a: { c: 2 } }
+ */
+export function omit<T extends object>(obj: T | null | undefined, ...keysArr: Array<Many<PropertyKey>>): Partial<T> {
+  if (obj == null) {
+    return {};
+  }
+
+  keysArr = flatten(keysArr);
+
+  const result = cloneInOmit(obj, keysArr);
+
+  for (let i = 0; i < keysArr.length; i++) {
+    const keys = keysArr[i];
+
+    switch (typeof keys) {
+      case 'object': {
+        if (Array.isArray(keys)) {
+          // A key array is a single deep path (e.g. `['a', 'b']` targets `a.b`), matching lodash.
+          unset(result, keys);
+        } else {
+          const arrayLikeKeys = Array.from(keys as PropertyKey[]);
+
+          for (let j = 0; j < arrayLikeKeys.length; j++) {
+            unset(result, arrayLikeKeys[j]);
+          }
+        }
+
+        break;
+      }
+      case 'string':
+      case 'symbol':
+      case 'number': {
+        unset(result, keys);
+        break;
+      }
+    }
+  }
+
+  return result;
+}
+
+function cloneInOmit<T extends object>(obj: T, keys: Array<Many<PropertyKey>>): Partial<T> {
+  const hasDeepKey = keys.some(key => Array.isArray(key) || isDeepKey(key as PropertyKey));
+
+  if (hasDeepKey) {
+    return deepCloneInOmit(obj);
+  }
+
+  return shallowCloneInOmit(obj);
+}
+
+function shallowCloneInOmit<T extends object>(obj: T): Partial<T> {
+  const result = {} as Partial<T>;
+  const keysToCopy = [...keysIn(obj), ...getSymbolsIn(obj)] as Array<keyof T>;
+
+  for (let i = 0; i < keysToCopy.length; i++) {
+    const key = keysToCopy[i];
+    result[key] = obj[key];
+  }
+
+  return result;
+}
+
+function deepCloneInOmit<T extends object>(obj: T): Partial<T> {
+  const result = {} as Partial<T>;
+  const keysToCopy = [...keysIn(obj), ...getSymbolsIn(obj)] as Array<keyof T>;
+
+  for (let i = 0; i < keysToCopy.length; i++) {
+    const key = keysToCopy[i];
+    result[key] = cloneDeepWith(obj[key], valueToClone => {
+      if (isPlainObject(valueToClone)) {
+        return undefined;
+      }
+
+      return valueToClone;
+    });
+  }
+
+  return result;
+}

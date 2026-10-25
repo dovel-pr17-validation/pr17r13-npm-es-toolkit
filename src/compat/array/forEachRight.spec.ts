@@ -1,0 +1,210 @@
+import { describe, expect, it } from 'vitest';
+import { forEachRight } from './forEachRight';
+import { includes } from './includes';
+import { map } from './map';
+import { MAX_SAFE_INTEGER } from '../_internal/MAX_SAFE_INTEGER';
+import { identity } from '../compat';
+import { isArray } from '../predicate/isArray';
+import { stubTrue } from '../util/stubTrue';
+
+describe('forEachRight', () => {
+  it(`should provide correct iteratee arguments`, () => {
+    const array = [1, 2, 3];
+    let args: any[];
+    const expected = [3, 2, array];
+
+    forEachRight(array, function (..._args: any[]) {
+      // eslint-disable-next-line @typescript-eslint/no-unused-expressions
+      args || (args = _args);
+    });
+
+    expect(args!).toEqual(expected);
+  });
+
+  it(`should treat sparse arrays as dense`, () => {
+    const array = [1];
+    array[2] = 3;
+
+    const expected = [
+      [1, 0, array],
+      [undefined, 1, array],
+      [3, 2, array],
+    ];
+    expected.reverse();
+
+    const argsList: any[] = [];
+    forEachRight(array, function (...args: any[]) {
+      argsList.push(args);
+      return true;
+    });
+
+    expect(argsList).toEqual(expected);
+  });
+
+  it(`should not iterate custom properties on arrays`, () => {
+    const array: any = [1, 2, 3];
+    array.a = 1;
+    const keys: any[] = [];
+    forEachRight(array, (value, key) => {
+      keys.push(key);
+      return false;
+    });
+
+    expect(includes(keys, 'a')).toBeFalsy();
+  });
+
+  it(`iterates over own string keyed properties of objects`, () => {
+    function Foo(this: any) {
+      this.a = 1;
+    }
+    Foo.prototype.b = 2;
+
+    const values: any[] = [];
+    // @ts-expect-error - Foo is not a constructor
+    forEachRight(new Foo(), value => {
+      values.push(value);
+    });
+    expect(values).toEqual([1]);
+  });
+
+  it(`should return the collection`, () => {
+    const array = [1, 2, 3];
+    expect(forEachRight(array, Boolean)).toBe(array);
+  });
+
+  it(`should use \`isArrayLike\` to determine whether a value is array-like`, () => {
+    const isIteratedAsObject = function (object: any) {
+      let result = false;
+      forEachRight(object, () => {
+        result = true;
+      });
+      return result;
+    };
+
+    const values = [-1, '1', 1.1, Object(1), MAX_SAFE_INTEGER + 1];
+    const expected = map(values, stubTrue);
+
+    const actual = map(values, length => isIteratedAsObject({ length: length }));
+
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const Foo = function (a: any) {};
+    Foo.a = 1;
+
+    expect(actual).toEqual(expected);
+    expect(isIteratedAsObject(Foo)).toBeTruthy();
+    expect(isIteratedAsObject({ length: 0 })).toBeFalsy();
+  });
+
+  it(`should ignore changes to \`length\``, () => {
+    let count = 0;
+    const array = [1];
+
+    forEachRight(array, () => {
+      if (++count === 1) {
+        array.push(2);
+      }
+      return true;
+    });
+
+    expect(count).toBe(1);
+  });
+
+  it(`should ignore added \`object\` properties`, () => {
+    let count = 0;
+    const object = { a: 1 };
+
+    forEachRight(object, () => {
+      if (++count === 1) {
+        // @ts-expect-error - Property 'b' does not exist on type '{ a: number; }'.
+        object.b = 2;
+      }
+      return true;
+    });
+
+    expect(count).toBe(1);
+  });
+
+  it(`can exit early when iterating arrays`, () => {
+    const array = [1, 2, 3];
+    const values: any[] = [];
+
+    forEachRight(array, (value, other) => {
+      values.push(isArray(value) ? other : value);
+      return false;
+    });
+
+    expect(values).toEqual([3]);
+  });
+
+  it(`can exit early when iterating objects`, () => {
+    const object = { a: 1, b: 2, c: 3 };
+    const values: any[] = [];
+
+    forEachRight(object, (value, other) => {
+      values.push(isArray(value) ? other : value);
+      return false;
+    });
+
+    expect(values.length).toBe(1);
+  });
+
+  it('should return the input collection if null or undefined is passed', () => {
+    const nullValue = null;
+    const undefinedValue = undefined;
+
+    const resultForNull = forEachRight(nullValue, identity);
+    const resultForUndefined = forEachRight(undefinedValue, identity);
+
+    expect(resultForNull).toBe(null);
+    expect(resultForUndefined).toBe(undefined);
+  });
+
+  it('should use identity function when no callback is provided', () => {
+    const array = [1, 2, 3];
+    const result = forEachRight(array);
+
+    expect(result).toBe(array);
+
+    const object = { a: 1, b: 2 };
+    const objectResult = forEachRight(object);
+
+    expect(objectResult).toBe(object);
+  });
+
+  it('should use identity function as the callback if no callback is provided', () => {
+    const array = [1, 2, 3];
+    const result = forEachRight(array);
+
+    expect(result).toBe(array);
+  });
+  it('should resolve a non-function `iteratee` like lodash instead of throwing', () => {
+    const array = [{ a: 1 }, { a: 2 }];
+
+    // @ts-expect-error - lodash accepts a nullish iteratee
+    expect(forEachRight(array, null)).toBe(array);
+    // @ts-expect-error - lodash accepts iteratee shorthands
+    expect(forEachRight(array, 'a')).toBe(array);
+    // @ts-expect-error - lodash accepts iteratee shorthands
+    expect(forEachRight(array, { a: 1 })).toBe(array);
+    // @ts-expect-error - lodash accepts iteratee shorthands
+    expect(forEachRight(array, ['a', 1])).toBe(array);
+  });
+
+  it('should treat a non-function `iteratee` as `identity`', () => {
+    let visited = 0;
+    const array: unknown[] = [];
+    Object.defineProperty(array, 0, {
+      enumerable: true,
+      get() {
+        visited++;
+        return true;
+      },
+    });
+    array[1] = false;
+
+    // @ts-expect-error - a non-function iteratee falls back to identity
+    forEachRight(array, 'a');
+
+    expect(visited).toBe(0);
+  });
+});

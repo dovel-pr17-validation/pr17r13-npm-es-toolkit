@@ -1,0 +1,287 @@
+import { describe, expect, it } from 'vitest';
+import { orderBy } from './orderBy.ts';
+import { zipObject } from '../../array/zipObject.ts';
+import { partialRight } from '../../function/partialRight.ts';
+import { falsey } from '../_internal/falsey.ts';
+
+describe('orderBy', () => {
+  class Pair {
+    constructor(
+      public a: number | undefined,
+      public b: number,
+      public c: number
+    ) {
+      this.a = a;
+      this.b = b;
+      this.c = c;
+    }
+  }
+  const objects = [
+    { a: 'x', b: 3 },
+    { a: 'y', b: 4 },
+    { a: 'x', b: 1 },
+    { a: 'y', b: 2 },
+  ];
+
+  const stableArray = [
+    new Pair(1, 1, 1),
+    new Pair(1, 2, 1),
+    new Pair(1, 1, 1),
+    new Pair(1, 2, 1),
+    new Pair(1, 3, 1),
+    new Pair(1, 4, 1),
+    new Pair(1, 5, 1),
+    new Pair(1, 6, 1),
+    new Pair(2, 1, 2),
+    new Pair(2, 2, 2),
+    new Pair(2, 3, 2),
+    new Pair(2, 4, 2),
+    new Pair(2, 5, 2),
+    new Pair(2, 6, 2),
+    new Pair(undefined, 1, 1),
+    new Pair(undefined, 2, 1),
+    new Pair(undefined, 3, 1),
+    new Pair(undefined, 4, 1),
+    new Pair(undefined, 5, 1),
+    new Pair(undefined, 6, 1),
+  ];
+
+  const stableObject = zipObject('abcdefghijklmnopqrst'.split(''), stableArray);
+
+  const nestedObj = [
+    { id: '4', address: { zipCode: 4, streetName: 'Beta' } },
+    { id: '3', address: { zipCode: 3, streetName: 'Alpha' } },
+    { id: '1', address: { zipCode: 1, streetName: 'Alpha' } },
+    { id: '2', address: { zipCode: 2, streetName: 'Alpha' } },
+    { id: '5', address: { zipCode: 4, streetName: 'Alpha' } },
+  ];
+
+  it(`should sort multiple properties in ascending order`, () => {
+    const actual = orderBy(objects, ['a', 'b']);
+    expect(actual).toEqual([objects[2], objects[0], objects[3], objects[1]]);
+  });
+
+  it(`should support iteratees`, () => {
+    const actual = orderBy(objects, [
+      'a',
+      function (object) {
+        return object.b;
+      },
+    ]);
+    expect(actual).toEqual([objects[2], objects[0], objects[3], objects[1]]);
+  });
+
+  it(`should perform a stable sort (test in IE > 8 and V8)`, () => {
+    expect(orderBy(stableArray, ['a', 'c'])).toEqual(stableArray);
+    expect(orderBy(stableObject, ['a', 'c'])).toEqual(stableArray);
+  });
+
+  it(`should not error on nullish elements`, () => {
+    let actual;
+    try {
+      actual = orderBy([...objects, null, undefined], ['a', 'b']);
+    } catch {
+      // do nothing
+    }
+
+    expect(actual).toEqual([objects[2], objects[0], objects[3], objects[1], null, undefined]);
+  });
+
+  it(`should work as an iteratee for methods like \`_.reduce\``, () => {
+    const objects = [
+      { a: 'x', 0: 3 },
+      { a: 'y', 0: 4 },
+      { a: 'x', 0: 1 },
+      { a: 'y', 0: 2 },
+    ];
+
+    // @ts-expect-error - reduce type mismatch
+    expect(['a'].reduce(orderBy, objects)).toEqual([objects[0], objects[2], objects[1], objects[3]]);
+    // @ts-expect-error - reduce type mismatch
+    expect([0].reduce(orderBy, objects)).toEqual([objects[2], objects[3], objects[0], objects[1]]);
+    // @ts-expect-error - reduce type mismatch
+    expect([[0]].reduce(orderBy, objects)).toEqual([objects[2], objects[3], objects[0], objects[1]]);
+
+    const wrapped = partialRight(orderBy, 'bogus');
+
+    // eslint-disable-next-line
+    // @ts-ignore
+    expect(['a'].reduce(wrapped, objects)).toEqual([objects[0], objects[2], objects[1], objects[3]]);
+    // eslint-disable-next-line
+    // @ts-ignore
+    expect([0].reduce(wrapped, objects)).toEqual([objects[2], objects[3], objects[0], objects[1]]);
+    // eslint-disable-next-line
+    // @ts-ignore
+    expect([[0]].reduce(wrapped, objects)).toEqual([objects[2], objects[3], objects[0], objects[1]]);
+  });
+
+  it('should return an empty array when the collection is null or undefined', () => {
+    const actual = [null, undefined].map(value => orderBy(value));
+    const expected = [[], []];
+
+    expect(actual).toEqual(expected);
+  });
+
+  it('should return a shallow copy of the collection when no keys are provided', () => {
+    const actual = orderBy(objects);
+    const expected = objects.slice();
+
+    expect(actual).toEqual(expected);
+  });
+
+  it('should return ascending ordered collection when no orders are provided', () => {
+    const actual = orderBy(objects, ['a']);
+    const expected = orderBy(objects, ['a'], ['asc']);
+
+    expect(actual).toEqual(expected);
+  });
+
+  it('should sort by a single property by a specified order', () => {
+    const actual = orderBy(objects, 'a', 'desc');
+    const expected = [objects[1], objects[3], objects[0], objects[2]];
+
+    expect(actual).toEqual(expected);
+  });
+
+  it('should sort by nested key in array format', () => {
+    const actual = orderBy(nestedObj, [['address', 'zipCode'], ['address.streetName']], ['asc', 'desc']);
+    const expected = [nestedObj[2], nestedObj[3], nestedObj[1], nestedObj[0], nestedObj[4]];
+
+    expect(actual).toEqual(expected);
+  });
+
+  it('should sort by multiple properties by specified orders', () => {
+    const actual = orderBy(objects, ['a', 'b'], ['desc', 'asc']);
+    const expected = [objects[3], objects[1], objects[2], objects[0]];
+
+    expect(actual).toEqual(expected);
+  });
+
+  it('should sort by a property in ascending order when its order is not specified', () => {
+    const actual = orderBy(objects, ['a', 'b']);
+    const expected = [objects[2], objects[0], objects[3], objects[1]];
+
+    expect(actual).toEqual(expected);
+  });
+
+  it('should sort by a property in ascending order when its order is not specified and the collection is falsey', () => {
+    // @ts-expect-error - type mismatch
+    const actual = falsey.map((order, index) => orderBy(objects, ['a', 'b'], index ? ['desc', order] : ['desc']));
+    const expected = falsey.map(() => [objects[3], objects[1], objects[2], objects[0]]);
+
+    expect(actual).toEqual(expected);
+  });
+
+  it('should work with `orders` specified as string objects', () => {
+    const actual = orderBy(objects, ['a'], [Object('desc')]);
+    const expected = [objects[1], objects[3], objects[0], objects[2]];
+
+    expect(actual).toEqual(expected);
+  });
+
+  it('should work with `deep` property paths', () => {
+    const actual = orderBy(nestedObj, ['address.zipCode'], ['asc']);
+    const expected = [nestedObj[2], nestedObj[3], nestedObj[1], nestedObj[0], nestedObj[4]];
+
+    expect(actual).toEqual(expected);
+  });
+
+  it('should work with nested `deep` property paths when paths length is 1', () => {
+    const actual = orderBy(nestedObj, [['address.zipCode']], ['asc']);
+    const expected = [nestedObj[2], nestedObj[3], nestedObj[1], nestedObj[0], nestedObj[4]];
+
+    expect(actual).toEqual(expected);
+  });
+
+  it('should work with `deep-like` property paths', () => {
+    const objects = [{ 'a.b': 1 }, { 'a.b': 2 }, { 'a.b': 3 }, { 'a.b': 4 }];
+    const actual = orderBy(objects, ['a.b'], ['desc']);
+    const expected = [objects[3], objects[2], objects[1], objects[0]];
+
+    expect(actual).toEqual(expected);
+  });
+
+  it('should work as an iteratee for methods like `_.map`', () => {
+    // `map` passes the index as `iteratees` and the array as `orders`, so the index is used as a
+    // criterion. Numbers have no such property, so the collections are returned in their original order.
+    expect(
+      [
+        [2, 1, 3],
+        [3, 2, 1],
+        // @ts-expect-error - type mismatch
+      ].map(orderBy)
+    ).toEqual([
+      [2, 1, 3],
+      [3, 2, 1],
+    ]);
+  });
+
+  it('should move `NaN`, nullish, and symbol values to the end', () => {
+    const symbol1 = Symbol ? Symbol('a') : null;
+    const symbol2 = Symbol ? Symbol('b') : null;
+    const array = [NaN, undefined, null, 4, symbol1, null, 1, symbol2, undefined, 3, NaN, 2];
+    const expected = [1, 2, 3, 4, symbol1, symbol2, null, null, undefined, undefined, NaN, NaN];
+
+    expect(orderBy(array)).toEqual(expected);
+    expect(orderBy(array, [])).toEqual(expected);
+
+    const array2 = [NaN, undefined, symbol1, null, 'd', null, 'a', symbol2, undefined, 'c', NaN, 'b'];
+    const expected2 = ['a', 'b', 'c', 'd', symbol1, symbol2, null, null, undefined, undefined, NaN, NaN];
+
+    expect(orderBy(array2)).toEqual(expected2);
+    expect(orderBy(array2, [])).toEqual(expected2);
+  });
+
+  it('should compare strings with ASCII code', () => {
+    // @ts-expect-error - type mismatch
+    expect(orderBy(['A', 'a'], null, 'desc')).toEqual(['a', 'A']);
+    // @ts-expect-error - type mismatch
+    expect(orderBy(['ABC', 'abc'], null, 'desc')).toEqual(['abc', 'ABC']);
+
+    expect(orderBy(['A', 'a'])).toEqual(['A', 'a']);
+    expect(orderBy(['ABC', 'abc'])).toEqual(['ABC', 'abc']);
+  });
+
+  it('should read the property of primitive values', () => {
+    expect(orderBy(['b', 'aa'], 'length')).toEqual(['b', 'aa']);
+    expect(orderBy(['b', 'aa'], 'length', 'desc')).toEqual(['aa', 'b']);
+    expect(orderBy(['ba', 'ab', 'b'], 0)).toEqual(['ab', 'ba', 'b']);
+  });
+
+  it('should keep the original order when primitive values lack the property', () => {
+    expect(orderBy([3, 1, 2], 'b')).toEqual([3, 1, 2]);
+    expect(orderBy(['c', 'a', 'b'], 'x')).toEqual(['c', 'a', 'b']);
+  });
+
+  it('should not include the `length` property for array-like objects', () => {
+    // @ts-expect-error - type mismatch
+    expect(orderBy({ 0: 3, 1: 1, 2: 2, length: 3 }, [null], ['asc'])).toEqual([1, 2, 3]);
+  });
+
+  it('should treat unresolved deep paths and nullish elements as `undefined` like lodash', () => {
+    expect(orderBy([{ a: {} }, { a: null }, null, { a: { b: 1 } }], ['a.b.c'], ['asc'])).toEqual([
+      { a: {} },
+      { a: null },
+      null,
+      { a: { b: 1 } },
+    ]);
+  });
+
+  it('should keep the order of nullish elements for empty or identity criteria', () => {
+    // empty path resolves to `undefined` like lodash's `baseGet`
+    expect(orderBy([null, { a: 1 }], [[]], ['asc'])).toEqual([null, { a: 1 }]);
+    // identity criterion keeps `null` before `undefined`
+    expect(orderBy([3, null, 1, undefined, 2])).toEqual([1, 2, 3, null, undefined]);
+  });
+
+  it('should distinguish a fully resolved `null` value from an unresolved path', () => {
+    // `{ a: { b: null } }` resolves `a.b` to `null`; the others are unresolved → `undefined`
+    expect(orderBy([{ a: { b: null } }, { a: null }, { a: {} }], ['a.b'], ['asc'])).toEqual([
+      { a: { b: null } },
+      { a: null },
+      { a: {} },
+    ]);
+    // `desc` reverses the priority order: `undefined` (higher priority) comes first
+    expect(orderBy([{ a: null }, { a: { b: null } }], ['a.b'], ['desc'])).toEqual([{ a: null }, { a: { b: null } }]);
+  });
+});

@@ -1,0 +1,76 @@
+import { isMergeableValue } from '../_internal/isMergeableValue.ts';
+import { isUnsafeProperty } from '../_internal/isUnsafeProperty.ts';
+import { isPlainObject } from '../predicate/isPlainObject.ts';
+import type { Merge } from '../types/Merge.ts';
+
+/**
+ * Merges the properties of the source object into the target object.
+ *
+ * This function performs a deep merge, meaning nested objects and arrays are merged recursively.
+ * If a property in the source object is an array or an object and the corresponding property in the target object is also an array or object, they will be merged.
+ * If a property in the source object is undefined, it will not overwrite a defined property in the target object.
+ *
+ * Note that this function mutates the target object.
+ *
+ * @param target - The target object into which the source object properties will be merged. This object is modified in place.
+ * @param source - The source object whose properties will be merged into the target object.
+ * @returns The updated target object with properties from the source object merged in.
+ *
+ * @template T - Type of the target object.
+ * @template S - Type of the source object.
+ *
+ * @example
+ * const target = { a: 1, b: { x: 1, y: 2 } };
+ * const source = { b: { y: 3, z: 4 }, c: 5 };
+ *
+ * const result = merge(target, source);
+ * console.log(result);
+ * // Output: { a: 1, b: { x: 1, y: 3, z: 4 }, c: 5 }
+ *
+ * @example
+ * const target = { a: [1, 2], b: { x: 1 } };
+ * const source = { a: [3], b: { y: 2 } };
+ *
+ * const result = merge(target, source);
+ * console.log(result);
+ * // Output: { a: [3, 2], b: { x: 1, y: 2 } }
+ *
+ * @example
+ * const target = { a: null };
+ * const source = { a: [1, 2, 3] };
+ *
+ * const result = merge(target, source);
+ * console.log(result);
+ * // Output: { a: [1, 2, 3] }
+ */
+export function merge<T extends Record<PropertyKey, any>, S extends Record<PropertyKey, any>>(
+  target: T,
+  source: S
+): Merge<T, S>;
+
+export function merge(target: Record<PropertyKey, any>, source: Record<PropertyKey, any>): Record<PropertyKey, any> {
+  const sourceKeys = Object.keys(source) as Array<keyof typeof source>;
+
+  for (let i = 0; i < sourceKeys.length; i++) {
+    const key = sourceKeys[i];
+
+    if (isUnsafeProperty(key)) {
+      continue;
+    }
+
+    const sourceValue = source[key];
+    const targetValue = target[key];
+
+    if (isMergeableValue(sourceValue) && isMergeableValue(targetValue)) {
+      target[key] = merge(targetValue, sourceValue);
+    } else if (Array.isArray(sourceValue)) {
+      target[key] = merge([], sourceValue);
+    } else if (isPlainObject(sourceValue)) {
+      target[key] = merge({}, sourceValue);
+    } else if (targetValue === undefined || sourceValue !== undefined) {
+      target[key] = sourceValue;
+    }
+  }
+
+  return target;
+}
